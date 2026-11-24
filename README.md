@@ -53,8 +53,8 @@ node-red
 pip install -r simulator/requirements.txt && python simulator/simulasi_esp32.py
 ```
 
-**5. Buka dashboard:** buka `dashboard/dashboard.html` di browser
-(atau salin ke folder static Node-RED lalu akses `http://localhost:1880/dashboard.html`).
+**5. Buka dashboard:** buka http://localhost:1880/dashboard di browser
+(disajikan langsung oleh Node-RED, tanpa masalah CORS).
 
 ## API
 Semua endpoint wajib header **`X-API-Key`** (default `iot-kampus-2026`; ganti dengan environment variable `API_KEY` pada Node-RED).
@@ -90,12 +90,11 @@ curl http://localhost:1880/api/suhu        # tanpa key -> 401
 ## Catatan Perbaikan dari Modul
 - Flow ditambah node `tab` (`flow_api`) agar import tidak gagal.
 - Typo header akibat pemotongan baris di PDF diperbaiki (`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers`).
-- CORS ditambah method `PUT` dan header `X-API-Key`.
+- Node "OPTIONS CORS" pada modul tidak berfungsi (node `http in` tidak mendukung method OPTIONS),
+  sehingga dashboard disajikan dari Node-RED sendiri di /dashboard.
 
 ## Keterbatasan
 - Endpoint WebSocket hanya memancarkan data (tidak menerima perintah) dan belum diautentikasi; autentikasi API key diterapkan pada seluruh endpoint REST.
 - Nilai threshold disimpan di flow context (memori), kembali ke 30 °C setelah Node-RED restart.
 - Tabel `sensor_history` tidak dibersihkan otomatis.
 
-## Screenshot
-_(tambahkan screenshot dashboard, flow Node-RED, dan hasil curl ke folder `docs/`)_

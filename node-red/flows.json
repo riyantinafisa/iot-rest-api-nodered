@@ -66,7 +66,7 @@
       []
     ],
     "name": "Buat Tabel",
-    "db": "sqlite_db",
+    "mydb": "sqlite_db",
     "sqlquery": "fixed",
     "mode": "readwrite",
     "sql": "CREATE TABLE IF NOT EXISTS sensor_history (id INTEGER PRIMARY KEY AUTOINCREMENT, suhu REAL, kelembaban REAL, timestamp TEXT, received TEXT);"
@@ -130,7 +130,7 @@
       []
     ],
     "name": "Simpan ke SQLite",
-    "db": "sqlite_db",
+    "mydb": "sqlite_db",
     "sqlquery": "prepared",
     "mode": "readwrite",
     "sql": "INSERT INTO sensor_history (suhu, kelembaban, timestamp, received) VALUES ($suhu, $kelembaban, $timestamp, $received);"
@@ -287,7 +287,7 @@
       ]
     ],
     "name": "Baca History",
-    "db": "sqlite_db",
+    "mydb": "sqlite_db",
     "sqlquery": "prepared",
     "mode": "readwrite",
     "sql": "SELECT id, suhu, kelembaban, timestamp, received FROM (SELECT * FROM sensor_history ORDER BY id DESC LIMIT $limit) ORDER BY id ASC;"
@@ -486,50 +486,52 @@
     "headers": {}
   },
   {
-    "id": "http_cors",
+    "id": "http_get_dash",
     "type": "http in",
     "z": "flow_api",
     "x": 170,
     "y": 820,
     "wires": [
       [
-        "cors_resp"
+        "tpl_dash"
       ]
     ],
-    "name": "OPTIONS CORS",
-    "url": "/api/*",
-    "method": "options",
+    "name": "GET /dashboard",
+    "url": "/dashboard",
+    "method": "get",
     "upload": false,
     "swaggerDoc": ""
   },
   {
-    "id": "cors_resp",
-    "type": "function",
+    "id": "tpl_dash",
+    "type": "template",
     "z": "flow_api",
     "x": 400,
     "y": 820,
     "wires": [
       [
-        "cors_http_resp"
+        "http_resp_dash"
       ]
     ],
-    "name": "CORS Headers",
-    "func": "msg.statusCode = 204;\nmsg.payload = '';\nmsg.headers = {\n    'Access-Control-Allow-Origin': '*',\n    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',\n    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'\n};\nreturn msg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": []
+    "name": "dashboard.html",
+    "field": "payload",
+    "fieldType": "msg",
+    "format": "html",
+    "syntax": "plain",
+    "template": "<!DOCTYPE html>\n<html lang=\"id\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>IoT Dashboard - REST API</title>\n<script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js\"></script>\n<style>\n  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }\n  body { background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; padding: 20px; color: #333; }\n  .container { max-width: 1000px; margin: 0 auto; }\n  h1 { color: white; text-align: center; margin-bottom: 8px; font-size: 28px; }\n  .subtitle { text-align: center; color: #e8e4ff; font-size: 13px; margin-bottom: 20px; }\n  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }\n  .card, .panel { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }\n  .card { text-align: center; transition: transform .2s; }\n  .card:hover { transform: translateY(-5px); }\n  .label { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 1px; }\n  .value { font-size: 40px; font-weight: bold; margin: 10px 0; color: #667eea; }\n  .unit { font-size: 16px; color: #aaa; }\n  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }\n  .on { background: #d4edda; color: #155724; } .off { background: #f8d7da; color: #721c24; }\n  .panel { margin-bottom: 25px; } .panel h2 { font-size: 18px; margin-bottom: 15px; color: #444; }\n  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }\n  .btn { padding: 12px 26px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; color: white; transition: all .2s; }\n  .btn-on { background: #28a745; } .btn-on:hover { background: #218838; }\n  .btn-off { background: #dc3545; } .btn-off:hover { background: #c82333; }\n  .btn-primary { background: #667eea; } .btn-primary:hover { background: #5568d3; }\n  input[type=number], input[type=text] { padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }\n  table { width: 100%; border-collapse: collapse; }\n  th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }\n  th { background: #f8f9fa; color: #666; text-transform: uppercase; font-size: 12px; }\n  #alertBox { display: none; background: #fff3cd; color: #856404; border-left: 6px solid #ffc107; padding: 14px 18px;\n              border-radius: 10px; margin-bottom: 25px; font-weight: 600; }\n  #log { background: #1e1e1e; color: #0f0; font-family: monospace; padding: 15px; border-radius: 10px; max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.6; }\n  #log .error { color: #f66; } #log .info { color: #6af; } #log .warn { color: #fc6; }\n  .chart-wrap { position: relative; height: 300px; }\n</style>\n</head>\n<body>\n<div class=\"container\">\n  <h1>🌡️ IoT Dashboard — REST API</h1>\n  <div class=\"subtitle\">Koneksi data: <span class=\"badge off\" id=\"wsBadge\">WebSocket terputus (polling)</span></div>\n\n  <div id=\"alertBox\"></div>\n\n  <div class=\"cards\">\n    <div class=\"card\"><div class=\"label\">Suhu</div><div class=\"value\" id=\"suhu\">--</div><div class=\"unit\">°C</div></div>\n    <div class=\"card\"><div class=\"label\">Kelembaban</div><div class=\"value\" id=\"kelembaban\">--</div><div class=\"unit\">%</div></div>\n    <div class=\"card\"><div class=\"label\">Status Sensor</div><div class=\"value\" style=\"font-size:22px\"><span class=\"badge off\" id=\"statusBadge\">OFFLINE</span></div></div>\n    <div class=\"card\"><div class=\"label\">Status Lampu</div><div class=\"value\" style=\"font-size:22px\"><span class=\"badge off\" id=\"lampBadge\">UNKNOWN</span></div></div>\n  </div>\n\n  <div class=\"panel\">\n    <h2>📈 Grafik Real-time</h2>\n    <div class=\"chart-wrap\"><canvas id=\"chart\"></canvas></div>\n  </div>\n\n  <div class=\"panel\">\n    <h2>💡 Kontrol Perangkat</h2>\n    <div class=\"row\">\n      <button class=\"btn btn-on\" onclick=\"kontrol('lamp','on')\">Nyalakan Lampu</button>\n      <button class=\"btn btn-off\" onclick=\"kontrol('lamp','off')\">Matikan Lampu</button>\n    </div>\n  </div>\n\n  <div class=\"panel\">\n    <h2>🚨 Batas Suhu (Threshold)</h2>\n    <div class=\"row\">\n      <label for=\"thrInput\">Batas maksimum (°C):</label>\n      <input type=\"number\" id=\"thrInput\" step=\"0.5\" value=\"30\" style=\"width:110px\">\n      <button class=\"btn btn-primary\" onclick=\"setThreshold()\">Simpan</button>\n      <span id=\"thrCurrent\" style=\"color:#666;font-size:14px\"></span>\n    </div>\n  </div>\n\n  <div class=\"panel\">\n    <h2>🔑 Pengaturan API Key</h2>\n    <div class=\"row\">\n      <input type=\"text\" id=\"keyInput\" style=\"width:260px\" placeholder=\"X-API-Key\">\n      <button class=\"btn btn-primary\" onclick=\"saveKey()\">Terapkan</button>\n    </div>\n  </div>\n\n  <div class=\"panel\">\n    <h2>📋 10 Data Sensor Terakhir</h2>\n    <table>\n      <thead><tr><th>Waktu</th><th>Suhu (°C)</th><th>Kelembaban (%)</th></tr></thead>\n      <tbody id=\"historyBody\"><tr><td colspan=\"3\" style=\"text-align:center;color:#999\">Loading...</td></tr></tbody>\n    </table>\n  </div>\n\n  <div class=\"panel\"><h2>🖥️ Log Aktivitas</h2><div id=\"log\"></div></div>\n</div>\n\n<script>\n// ===== KONFIGURASI =====\n// Jika dashboard dibuka dari Node-RED (port 1880) pakai host yang sama, selain itu localhost:1880\nconst HOST = (location.protocol.startsWith('http') && location.port === '1880') ? location.host : 'localhost:1880';\nconst API_BASE = `http://${HOST}/api`;\nconst WS_URL = `ws://${HOST}/ws/sensor`;\nconst MAX_POINTS = 30;\nconst OFFLINE_AFTER_MS = 10000;\n\nlet apiKey = 'iot-kampus-2026';\ntry { apiKey = localStorage.getItem('apiKey') || apiKey; } catch (e) {}\ndocument.getElementById('keyInput').value = apiKey;\n\nlet wsOpen = false, lastDataAt = 0, threshold = 30, rows = [];\n\n// ===== UTIL =====\nfunction log(msg, type = 'info') {\n  const el = document.getElementById('log');\n  const div = document.createElement('div');\n  div.className = type;\n  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;\n  el.appendChild(div);\n  el.scrollTop = el.scrollHeight;\n}\nfunction setBadge(id, text, on) {\n  const el = document.getElementById(id);\n  el.textContent = text; el.className = 'badge ' + (on ? 'on' : 'off');\n}\nasync function api(path, opts = {}) {\n  const res = await fetch(API_BASE + path, {\n    ...opts,\n    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey, ...(opts.headers || {}) }\n  });\n  const json = await res.json().catch(() => ({}));\n  if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`);\n  return json;\n}\nfunction saveKey() {\n  apiKey = document.getElementById('keyInput').value.trim();\n  try { localStorage.setItem('apiKey', apiKey); } catch (e) {}\n  log('API key diperbarui', 'info');\n  init();\n}\n\n// ===== CHART.JS =====\nconst chart = new Chart(document.getElementById('chart'), {\n  type: 'line',\n  data: { labels: [], datasets: [\n    { label: 'Suhu (°C)', data: [], borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,.15)', tension: .3, yAxisID: 'y' },\n    { label: 'Kelembaban (%)', data: [], borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,.15)', tension: .3, yAxisID: 'y1' },\n    { label: 'Batas suhu', data: [], borderColor: '#f39c12', borderDash: [6, 6], pointRadius: 0, yAxisID: 'y' }\n  ]},\n  options: {\n    responsive: true, maintainAspectRatio: false, animation: false,\n    scales: {\n      y:  { position: 'left',  title: { display: true, text: '°C' } },\n      y1: { position: 'right', title: { display: true, text: '%' }, grid: { drawOnChartArea: false } }\n    }\n  }\n});\nfunction chartPush(d) {\n  const t = new Date(d.received || Date.now()).toLocaleTimeString();\n  chart.data.labels.push(t);\n  chart.data.datasets[0].data.push(d.suhu);\n  chart.data.datasets[1].data.push(d.kelembaban);\n  while (chart.data.labels.length > MAX_POINTS) { chart.data.labels.shift(); chart.data.datasets.forEach(s => s.data.shift()); }\n  syncThresholdLine();\n}\nfunction syncThresholdLine() {\n  chart.data.datasets[2].data = chart.data.labels.map(() => threshold);\n  chart.update();\n}\n\n// ===== RENDER =====\nfunction renderSensor(d) {\n  document.getElementById('suhu').textContent = d.suhu;\n  document.getElementById('kelembaban').textContent = d.kelembaban;\n  lastDataAt = Date.now();\n  setBadge('statusBadge', 'ONLINE', true);\n}\nfunction renderLamp(status) { setBadge('lampBadge', status, status === 'ON'); }\nfunction renderThreshold(v) {\n  threshold = v;\n  document.getElementById('thrInput').value = v;\n  document.getElementById('thrCurrent').textContent = `Batas aktif: ${v} °C`;\n  syncThresholdLine();\n}\nfunction renderTable() {\n  const tbody = document.getElementById('historyBody');\n  tbody.innerHTML = '';\n  if (!rows.length) {\n    tbody.innerHTML = '<tr><td colspan=\"3\" style=\"text-align:center;color:#999\">Belum ada data</td></tr>'; return;\n  }\n  rows.slice(-10).reverse().forEach(d => {\n    const tr = document.createElement('tr');\n    [new Date(d.received).toLocaleTimeString(), d.suhu, d.kelembaban].forEach(v => {\n      const td = document.createElement('td'); td.textContent = v; tr.appendChild(td);\n    });\n    tbody.appendChild(tr);\n  });\n}\nfunction showAlert(a) {\n  const box = document.getElementById('alertBox');\n  box.textContent = '🚨 ' + a.message;\n  box.style.display = 'block';\n  log('ALERT: ' + a.message, 'warn');\n  clearTimeout(showAlert.t);\n  showAlert.t = setTimeout(() => box.style.display = 'none', 15000);\n}\n\n// ===== REST API =====\nasync function fetchSensor() {\n  try {\n    const j = await api('/suhu');\n    if (j.data && j.data.suhu !== null) renderSensor(j.data);\n    renderLamp(j.status_lampu);\n    renderThreshold(j.threshold);\n  } catch (err) { log('Gagal fetch sensor: ' + err.message, 'error'); }\n}\nasync function fetchHistory() {\n  try {\n    const j = await api('/history?limit=30');\n    rows = j.data || [];\n    chart.data.labels = []; chart.data.datasets.forEach(s => s.data = []);\n    rows.forEach(chartPush);\n    renderTable();\n  } catch (err) { log('Gagal fetch history: ' + err.message, 'error'); }\n}\nasync function kontrol(device, action) {\n  try {\n    const j = await api('/kontrol', { method: 'POST', body: JSON.stringify({ device, action }) });\n    log(`✓ ${j.message}: ${device} → ${action}`);\n  } catch (err) { log('✗ Error kontrol: ' + err.message, 'error'); }\n}\nasync function setThreshold() {\n  const v = parseFloat(document.getElementById('thrInput').value);\n  try {\n    const j = await api('/threshold', { method: 'PUT', body: JSON.stringify({ suhu_max: v }) });\n    log(`✓ ${j.message}: ${j.suhu_max} °C`);\n  } catch (err) { log('✗ Gagal set threshold: ' + err.message, 'error'); }\n}\n\n// ===== WEBSOCKET =====\nfunction connectWS() {\n  const ws = new WebSocket(WS_URL);\n  ws.onopen = () => { wsOpen = true; setBadge('wsBadge', 'WebSocket terhubung (real-time)', true); log('WebSocket terhubung'); };\n  ws.onclose = () => {\n    wsOpen = false; setBadge('wsBadge', 'WebSocket terputus (polling)', false);\n    setTimeout(connectWS, 3000);\n  };\n  ws.onerror = () => ws.close();\n  ws.onmessage = (ev) => {\n    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }\n    if (m.type === 'sensor') {\n      renderSensor(m.data); renderLamp(m.status_lampu);\n      rows.push(m.data); if (rows.length > 100) rows.shift();\n      chartPush(m.data); renderTable();\n    } else if (m.type === 'alert') showAlert(m);\n    else if (m.type === 'threshold') { renderThreshold(m.suhu_max); log(`Threshold diubah: ${m.suhu_max} °C`); }\n    else if (m.type === 'lamp') { renderLamp(m.status); log(`Lampu ${m.status}`); }\n  };\n}\n\n// ===== START =====\nasync function init() { await fetchSensor(); await fetchHistory(); }\nlog('Dashboard dimulai');\ninit();\nconnectWS();\nsetInterval(() => { if (!wsOpen) fetchSensor(); }, 3000);          // fallback polling\nsetInterval(() => { if (Date.now() - lastDataAt > OFFLINE_AFTER_MS) setBadge('statusBadge', 'OFFLINE', false); }, 1000);\n</script>\n</body>\n</html>\n",
+    "output": "str"
   },
   {
-    "id": "cors_http_resp",
+    "id": "http_resp_dash",
     "type": "http response",
     "z": "flow_api",
-    "x": 640,
+    "x": 650,
     "y": 820,
     "wires": [],
     "name": "",
-    "statusCode": "",
-    "headers": {}
+    "statusCode": "200",
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8"
+    }
   }
 ]
